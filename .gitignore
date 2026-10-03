@@ -1,0 +1,12 @@
+*.db 
+*.sqlite 
+*.xlsx 
+*.parquet 
+*.fasta 
+*.png 
+__pycache__/ 
+venv/ 
+.env 
+.vscode/ 
+.idea/ 
+.DS_Store
