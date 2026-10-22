@@ -6,7 +6,7 @@ import random
 import sqlite3
 import subprocess
 import sys
-import warnings  # Added to suppress diagnostic noise
+import warnings  
 from pathlib import Path
 
 # Silence non-critical library and framework warning diagnostics
@@ -31,10 +31,6 @@ from sklearn.metrics import accuracy_score
 # Enforce non-interactive visualization backend for headless/CI pipelines
 matplotlib.use('Agg')
 
-
-# ==============================================================================
-# CENTRALIZED DYNAMIC PATH CONFIGURATION
-# ==============================================================================
 # ==============================================================================
 # CENTRALIZED DYNAMIC PATH CONFIGURATION (INTERNATIONAL PRODUCTION STANDARD)
 # ==============================================================================
@@ -50,6 +46,20 @@ FASTA_READY_PATH = BASE_DIR / "clean_genomic_dataset_sql.fasta"
 
 DB_PATH = BASE_DIR / "genomic_production.db"
 
+# Centralized production configuration to eliminate magic numbers and hardcoding
+CONFIG = {
+    "clinical_constraints": {
+        "min_age": 20,
+        "max_age": 65,
+        "samples_per_class": 1000
+    },
+    "genomic_engineering": {
+        "motif": "TATAAA",
+        "locus_position": 30,
+        "cut_position": 36  
+    }
+}
+
 # Seed initialization for operational reproducibility
 np.random.seed(26)
 
@@ -58,54 +68,39 @@ np.random.seed(26)
 # ==============================================================================
 
 def generate_genomic_dataset(n_samples: int = 10000) -> pd.DataFrame:
-    """Simulates raw patient clinical records paired with synthetic genomic sequences.
-
-    Args:
-        n_samples (int): Total number of patient records to generate.
-
-    Returns:
-        pd.DataFrame: Simulated raw genomic and clinical data workspace.
-    """
-    dataset = []
+    """Simulates raw patient clinical records paired with synthetic genomic sequences."""
     dna_bases = ['A', 'C', 'G', 'T']
     
-    for _ in range(n_samples):
-        # Biased distribution simulating specific genomic background noise
-        dna_sequence = "".join(np.random.choice(dna_bases, p=[0.1, 0.4, 0.4, 0.1], size=200))
+    # Vectorized generation of DNA bases for maximum performance
+    sequences_matrix = np.random.choice(dna_bases, p=[0.1, 0.4, 0.4, 0.1], size=(n_samples, 200))
+    dna_sequences = ["".join(row) for row in sequences_matrix]
             
-        clinical_records = {
-            "PatientID": np.random.randint(1, n_samples),
-            "Age": random.randrange(20, 66),
-            "RefTag": np.random.randint(1, n_samples),
-            "Label": np.random.randint(0, 2),
-            "DnaSequence": dna_sequence
-        }
-        dataset.append(clinical_records)
+    dataset = {
+        "PatientID": np.random.randint(1, n_samples, size=n_samples),
+        "Age": [random.randrange(20, 66) for _ in range(n_samples)],
+        "RefTag": np.random.randint(1, n_samples, size=n_samples),
+        "Label": np.random.randint(0, 2, size=n_samples),
+        "DnaSequence": dna_sequences
+    }
         
     return pd.DataFrame(dataset)
-
 
 def export_initial_formats(df: pd.DataFrame) -> None:
     """Synchronizes the simulated raw data layer across multi-standard extensions."""
     df.to_excel(EXCEL_RAW_PATH, index=False)
-    # Using 'fastparquet' engine to ensure robust cross-platform compatibility
-    # and prevent OS-level execution blocks on PyArrow compiled binaries.
     df.to_parquet(PARQUET_RAW_PATH, index=False, engine='fastparquet')
-    fasta_file = open(FASTA_RAW_PATH, "w", encoding="utf-8")
-    for _, r in df.iterrows():
-        fasta_file.write(f">Patient_{r['PatientID']}|Label_{r['Label']}\n{r['DnaSequence']}\n")
-    fasta_file.close()
+    
+    # Vectorized implementation with open Context Manager
+    with open(FASTA_RAW_PATH, "w", encoding="utf-8") as fasta_file:
+        fasta_lines = [
+            f">Patient_{row.PatientID}|Label_{row.Label}\n{row.DnaSequence}\n"
+            for row in df.itertuples(index=False)
+        ]
+        fasta_file.writelines(fasta_lines)
 
 
 def inject_pipeline_anomalies(df: pd.DataFrame) -> pd.DataFrame:
-    """Injects structured clinical outliers and missing fields for stress testing.
-
-    Args:
-        df (pd.DataFrame): Clean input data workspace.
-
-    Returns:
-        pd.DataFrame: Modified dataframe containing boundary violations and NaN states.
-    """
+    """Injects structured clinical outliers and missing fields for stress testing."""
     df_corrupted = df.copy()
     forbidden_ages = list(range(1, 20)) + list(range(66, 120)) + [250, -5]
     forbidden_labels = [-1, 2, 99, 999]
@@ -126,14 +121,7 @@ def inject_pipeline_anomalies(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def clean_and_balance_dataset(df: pd.DataFrame) -> pd.DataFrame:
-    """Executes data validation rules, isolates clean states, and balances target classes.
-
-    Args:
-        df (pd.DataFrame): Corrupted input dataframe.
-
-    Returns:
-        pd.DataFrame: Cleaned data workspace down-sampled to exact target counts.
-    """
+    """Executes data validation rules, isolates clean states, and balances target classes."""
     # 1. Deduplication using database relational keys
     df_cleaned = df.drop_duplicates(subset=["PatientID"])
     df_cleaned = df_cleaned.drop_duplicates(subset=["RefTag"])
@@ -143,33 +131,33 @@ def clean_and_balance_dataset(df: pd.DataFrame) -> pd.DataFrame:
     df_cleaned = df_cleaned[df_cleaned["Label"].isin([0.0, 1.0])]
     df_cleaned["Label"] = df_cleaned["Label"].astype(int)
 
-    # 3. Demographic clinical boundary enforcement
-    df_cleaned = df_cleaned[(df_cleaned["Age"] >= 20) & (df_cleaned["Age"] <= 65)]
+    # 3. Demographic clinical boundary enforcement via global CONFIG
+    min_age = CONFIG["clinical_constraints"]["min_age"]
+    max_age = CONFIG["clinical_constraints"]["max_age"]
+    df_cleaned = df_cleaned[(df_cleaned["Age"] >= min_age) & (df_cleaned["Age"] <= max_age)]
 
-    # 4. Stratified under-sampling execution (1000 records per operational class)
+    # 4. Stratified under-sampling execution extracted dynamically from CONFIG
+    n_samples = CONFIG["clinical_constraints"]["samples_per_class"]
     df_balanced = pd.concat([
-        df_cleaned[df_cleaned["Label"] == 0].sample(1000, random_state=26),
-        df_cleaned[df_cleaned["Label"] == 1].sample(1000, random_state=26)
+        df_cleaned[df_cleaned["Label"] == 0].sample(n_samples, random_state=26),
+        df_cleaned[df_cleaned["Label"] == 1].sample(n_samples, random_state=26)
     ]).sample(frac=1, random_state=26)
 
     return df_balanced
 
 
 def execute_feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
-    """Injects a deterministic biological motif (TATA-box consensus) into positive records.
-
-    Args:
-        df (pd.DataFrame): Balanced input dataframe.
-
-    Returns:
-        pd.DataFrame: Dataframe containing functional genomic target signals.
-    """
+    """Injects a deterministic biological motif (TATA-box consensus) into positive records."""
     df_engineered = df.copy()
     idx_tata = df_engineered[df_engineered['Label'] == 1].index
 
-    # Vectorized substitution of the TATA-box motif at locus position 30
+    # Vectorized substitution of the TATA-box motif via dynamic configuration mapping
+    motif = CONFIG["genomic_engineering"]["motif"]
+    pos = CONFIG["genomic_engineering"]["locus_position"]
+    cut = CONFIG["genomic_engineering"]["cut_position"]
+
     df_engineered.loc[idx_tata, 'DnaSequence'] = df_engineered.loc[idx_tata, 'DnaSequence'].apply(
-        lambda seq: seq[:30] + 'TATAAA' + seq[36:]
+        lambda seq: seq[:pos] + motif + seq[cut:]
     )
     return df_engineered
 
@@ -179,87 +167,87 @@ def execute_feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
 
 def run_database_pipeline() -> None:
     """Initializes the relational engine, builds a 3NF schema, and validates data ingestion."""
-    connection = sqlite3.connect(str(DB_PATH))
-    cursor = connection.cursor()
+    # Enforce safe connection context manager
+    with sqlite3.connect(str(DB_PATH)) as connection:
+        cursor = connection.cursor()
 
-    # Enforce relational constraints and wipe stale table assets
-    cursor.execute("PRAGMA foreign_keys = ON;")
-    cursor.execute("DROP TABLE IF EXISTS staging_source")
-    cursor.execute("DROP TABLE IF EXISTS biology")
-    cursor.execute("DROP TABLE IF EXISTS patients")
-    connection.commit()
+        # Enforce relational constraints and wipe stale table assets
+        cursor.execute("PRAGMA foreign_keys = ON;")
+        cursor.execute("DROP TABLE IF EXISTS staging_source")
+        cursor.execute("DROP TABLE IF EXISTS biology")
+        cursor.execute("DROP TABLE IF EXISTS patients")
+        connection.commit()
 
-    # DDL: Ingestion Stage Staging Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS staging_source (
-        PatientID INTEGER, Age INTEGER, RefTag INTEGER, DnaSequence TEXT, Label INTEGER
-    )''')
-    connection.commit()
+        # DDL: Ingestion Stage Staging Table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS staging_source (
+            PatientID INTEGER, Age INTEGER, RefTag INTEGER, DnaSequence TEXT, Label INTEGER
+        )''')
+        connection.commit()
 
-    # High-performance bulk insertion using validation sheet layer
-    df_source = pd.read_excel(EXCEL_READY_PATH)
-    data_to_insert = list(df_source[["PatientID", "Age", "RefTag", "DnaSequence", "Label"]].itertuples(index=False, name=None))
-    cursor.executemany("INSERT INTO staging_source VALUES (?, ?, ?, ?, ?)", data_to_insert)
-    connection.commit()
-    print(f"INFO - SQL Engine: {len(data_to_insert)} records loaded into staging environment.\n")
+        # High-performance bulk insertion using validation sheet layer
+        df_source = pd.read_excel(EXCEL_READY_PATH)
+        data_to_insert = list(df_source[["PatientID", "Age", "RefTag", "DnaSequence", "Label"]].itertuples(index=False, name=None))
+        cursor.executemany("INSERT INTO staging_source VALUES (?, ?, ?, ?, ?)", data_to_insert)
+        connection.commit()
+        print(f"INFO - SQL Engine: {len(data_to_insert)} records loaded into staging environment.\n")
 
-    print("==================================================")
-    print("=== PHASE A: SOURCE DATABASE INTEGRITY AUDIT   ===")
-    print("==================================================")
-    
-    cursor.execute("SELECT COUNT(*) FROM staging_source")
-    print(f"[Query 1] Total records in Source Table: {cursor.fetchone()}") 
+        print("==================================================")
+        print("=== PHASE A: SOURCE DATABASE INTEGRITY AUDIT   ===")
+        print("==================================================")
+        
+        cursor.execute("SELECT COUNT(*) FROM staging_source")
+        print(f"[Query 1] Total records in Source Table: {cursor.fetchone()[0]}") 
 
-    cursor.execute("SELECT COUNT(DISTINCT PatientID) FROM staging_source")
-    print(f"[Query 2] Unique patients identified: {cursor.fetchone()}") 
+        cursor.execute("SELECT COUNT(DISTINCT PatientID) FROM staging_source")
+        print(f"[Query 2] Unique patients identified: {cursor.fetchone()[0]}") 
 
-    cursor.execute("SELECT Label, COUNT(*) FROM staging_source GROUP BY Label")
-    print("[Query 3] Class Target Distribution:")
-    for row in cursor.fetchall():
-        print(f"          -> Class {row}: {row} samples")
+        cursor.execute("SELECT Label, COUNT(*) FROM staging_source GROUP BY Label")
+        print("[Query 3] Class Target Distribution:")
+        for row in cursor.fetchall():
+            print(f"          -> Class {row[0]}: {row[1]} samples")
 
-    cursor.execute("SELECT AVG(Age) FROM staging_source")
-    average_age_row = cursor.fetchone()
-    print(f"[Query 4] Population Average Age: {average_age_row[0]:.2f} years")
+        cursor.execute("SELECT AVG(Age) FROM staging_source")
+        average_age_row = cursor.fetchone()[0]
+        print(f"[Query 4] Population Average Age: {average_age_row:.2f} years")
 
-    cursor.execute("SELECT COUNT(DISTINCT RefTag), MAX(cnt) FROM (SELECT RefTag, COUNT(*) as cnt FROM staging_source GROUP BY RefTag)")
-    batch_stats = cursor.fetchone()
-    print(f"[Query 5] Unique batches (RefTag): {batch_stats} | Max sample density: {batch_stats}")
+        cursor.execute("SELECT COUNT(DISTINCT RefTag), MAX(cnt) FROM (SELECT RefTag, COUNT(*) as cnt FROM staging_source GROUP BY RefTag)")
+        batch_stats = cursor.fetchone()
+        print(f"[Query 5] Unique batches (RefTag): {batch_stats[0]} | Max sample density: {batch_stats[1]}")
 
-    cursor.execute("SELECT MIN(LENGTH(DnaSequence)), MAX(LENGTH(DnaSequence)) FROM staging_source")
-    dna_lengths = cursor.fetchone() 
-    print(f"[Query 6] Genomic Integrity Check: Min Length {dna_lengths} bp, Max Length {dna_lengths} bp")
-    print("==================================================")
+        cursor.execute("SELECT MIN(LENGTH(DnaSequence)), MAX(LENGTH(DnaSequence)) FROM staging_source")
+        dna_lengths = cursor.fetchone() 
+        print(f"[Query 6] Genomic Integrity Check: Min Length {dna_lengths[0]} bp, Max Length {dna_lengths[1]} bp")
+        print("==================================================")
 
-    print("\n==================================================")
-    print("=== PHASE B: RELATIONAL SCHEMA DECOMPOSITION   ===")
-    print("==================================================")
-    
-    # 3NF Normalization: Parent Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS patients (
-        PatientID INTEGER PRIMARY KEY, Age INTEGER NOT NULL, RefTag INTEGER NOT NULL
-    )''')
+        print("\n==================================================")
+        print("=== PHASE B: RELATIONAL SCHEMA DECOMPOSITION   ===")
+        print("==================================================")
+        
+        # 3NF Normalization: Parent Table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS patients (
+            PatientID INTEGER PRIMARY KEY, Age INTEGER NOT NULL, RefTag INTEGER NOT NULL
+        )''')
 
-    # 3NF Normalization: Child Table tied via Foreign Key
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS biology (
-        SequenceID INTEGER PRIMARY KEY AUTOINCREMENT,
-        PatientID INTEGER NOT NULL, DnaSequence TEXT NOT NULL, Label INTEGER NOT NULL,
-        FOREIGN KEY (PatientID) REFERENCES patients(PatientID)
-    )''')
-    
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_biology_label ON biology(Label);")
-    connection.commit()
+        # 3NF Normalization: Child Table tied via Foreign Key
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS biology (
+            SequenceID INTEGER PRIMARY KEY AUTOINCREMENT,
+            PatientID INTEGER NOT NULL, DnaSequence TEXT NOT NULL, Label INTEGER NOT NULL,
+            FOREIGN KEY (PatientID) REFERENCES patients(PatientID)
+        )''')
+        
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_biology_label ON biology(Label);")
+        connection.commit()
 
-    # Lossless relational decomposition mapping
-    cursor.execute("INSERT OR IGNORE INTO patients (PatientID, Age, RefTag) SELECT DISTINCT PatientID, Age, RefTag FROM staging_source")
-    cursor.execute("INSERT INTO biology (PatientID, DnaSequence, Label) SELECT PatientID, DnaSequence, Label FROM staging_source")
-    connection.commit()
+        # Lossless relational decomposition mapping
+        cursor.execute("INSERT OR IGNORE INTO patients (PatientID, Age, RefTag) SELECT DISTINCT PatientID, Age, RefTag FROM staging_source")
+        cursor.execute("INSERT INTO biology (PatientID, DnaSequence, Label) SELECT PatientID, DnaSequence, Label FROM staging_source")
+        connection.commit()
 
-    print("INFO - Relational normalization finalized: 'patients' and 'biology' schemas deployed.")
-    print("==================================================")
-    connection.close()
+        print("INFO - Relational normalization finalized: 'patients' and 'biology' schemas deployed.")
+        print("==================================================")
 
 # ==============================================================================
 # PIPELINE STAGE FUNCTIONS: DEEP NEURAL NETWORK INTEL & BENCHMARKS
@@ -376,10 +364,14 @@ def main():
 
     df_final.to_excel(EXCEL_READY_PATH, index=False)
     df_final.to_parquet(PARQUET_READY_PATH, index=False)
-    fasta_ready_file = open(FASTA_READY_PATH, "w", encoding="utf-8")
-    for _, r in df_final.iterrows():
-        fasta_ready_file.write(f">Patient_{r['PatientID']}|Label_{r['Label']}|Age_{r['Age']}\n{r['DnaSequence']}\n")
-    fasta_ready_file.close()
+    
+    # Vectorized writing paired with open Context Manager
+    with open(FASTA_READY_PATH, "w", encoding="utf-8") as fasta_ready_file:
+        lines_ready = [
+            f">Patient_{row.PatientID}|Label_{row.Label}|Age_{row.Age}\n{row.DnaSequence}\n"
+            for row in df_final.itertuples(index=False)
+        ]
+        fasta_ready_file.writelines(lines_ready)
 
     print("\nExecuting Stage 4: Relational Ingestion Engine Pipeline...")
     run_database_pipeline()
