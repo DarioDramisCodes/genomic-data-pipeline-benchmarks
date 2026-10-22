@@ -1,11 +1,16 @@
+# type: ignore
+
 import os
 import sys
 import unittest
 import numpy as np
 import pandas as pd
 
-# Automatically inject the parent directory into the Python path resolution
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Enterprise Fix: Ensure absolute path injection to mitigate ModuleNotFoundError
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
 
 # Import updated functions and the central CONFIG
 from main import (
