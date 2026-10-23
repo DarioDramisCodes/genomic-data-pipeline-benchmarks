@@ -56,5 +56,21 @@ Upon execution, the automated runtime synchronizes and exports the following dep
    python main.py
    ```
 
+4. Run the automated integration and unit test suite:
+   ```bash
+   python test_pipeline.py
+   ```
 
+### Method B: Containerized Isolation (Docker) / Docker環境
+This pipeline is designed as a **finite batch-processing application**. It runs completely in-memory utilizing inbuilt temporary layers and automatically releases all allocated RAM upon completion. Because it does not operate as an always-on multi-service architecture, it uses an optimized standalone `Dockerfile` instead of multi-container orchestrators like Docker Compose.
+
+To compile the environment and run the pipeline inside an isolated container:
+1. Build the production-ready Docker image (this will automatically trigger the unit test suite during the build stage to ensure container safety):
+   ```bash
+   docker build -t genomic-pipeline-benchmarks .
+   ```
+2. Run the isolated container to execute the data processing and training runtime:
+   ```bash
+   docker run --rm genomic-pipeline-benchmarks
+   ```
 
