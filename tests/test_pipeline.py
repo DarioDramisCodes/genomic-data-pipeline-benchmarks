@@ -2,9 +2,17 @@
 
 import os
 import sys
+
+# ==============================================================================
+# ENVIRONMENT ENVIRONMENT CONFIGURATIONS FOR HEADLESS CI/CD LOG PIPELINES
+# ==============================================================================
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'      # Suppress TensorFlow compilation INFO/WARNING logs
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'     # Mute oneDNN runtime optimization messages
+
 import unittest
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 # Automatically inject the parent directory into the Python path resolution
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,6 +33,7 @@ class TestGenomicPipeline(unittest.TestCase):
     def setUp(self):
         """Executed before each test to ensure operational reproducibility."""
         np.random.seed(26) # Forces identical random extraction for all tests
+        tf.random.set_seed(26)
 
     def test_stage1_generation_properties(self):
         """[Stage 1] Verifies row dimensions and key features of simulated data."""
@@ -78,14 +87,17 @@ class TestGenomicPipeline(unittest.TestCase):
         self.assertTrue(motif_isolated, "Feature engineering failed to securely inject the biological motif.")
 
     def test_stage5_tensor_encoding_shape(self):
-        """[Stage 5] Ensures categorical nucleotide sequences convert to clean tensor matrices."""
+        """[Stage 5] Ensures categorical nucleotide sequences convert to clean native TensorFlow tensors."""
         mapping = {'A': [1.0, 0.0, 0.0, 0.0], 'C': [0.0, 1.0, 0.0, 0.0], 'G': [0.0, 0.0, 1.0, 0.0], 'T': [0.0, 0.0, 0.0, 1.0]}
         mock_sequences = ["ACGT", "TGCA"]
         encoded = encode_dna_sequences(mock_sequences, mapping)
        
-        # 2 samples, 4 bases * 4 dimensions = 16 features
-        self.assertEqual(encoded.shape, (2, 16))
-        self.assertEqual(encoded.dtype, np.float32)
+        # CORREZIONE: Verifica che la struttura restituita sia un'istanza corretta di tf.Tensor
+        self.assertIsInstance(encoded, tf.Tensor, "Encoder output must be a native tf.Tensor.")
+        
+        # 2 campioni, 4 basi * 4 canali = 16 feature
+        self.assertEqual(list(encoded.shape), [2, 16])
+        self.assertEqual(encoded.dtype, tf.float32)
 
 if __name__ == "__main__":
     unittest.main()

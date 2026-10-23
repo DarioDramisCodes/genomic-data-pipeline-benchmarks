@@ -25,10 +25,8 @@ import pandas as pd
 import seaborn as sns
 import sklearn
 import tensorflow as tf
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 
 # Enforce non-interactive visualization backend for headless/CI pipelines
 matplotlib.use('Agg')
@@ -64,6 +62,7 @@ CONFIG = {
 
 # Seed initialization for operational reproducibility
 np.random.seed(26)
+tf.random.set_seed(26)
 
 # ==============================================================================
 # PIPELINE STAGE FUNCTIONS: DATA GENERATION, ANOMALIES & CLEANSING
@@ -199,10 +198,12 @@ def run_database_pipeline() -> None:
         print("==================================================")
         
         cursor.execute("SELECT COUNT(*) FROM staging_source")
-        print(f"[Query 1] Total records in Source Table: {cursor.fetchone()[0]}") 
+        val_q1 = cursor.fetchone()[0]
+        print(f"[Query 1] Total records in Source Table: {val_q1}") 
 
         cursor.execute("SELECT COUNT(DISTINCT PatientID) FROM staging_source")
-        print(f"[Query 2] Unique patients identified: {cursor.fetchone()[0]}") 
+        val_q2 = cursor.fetchone()[0]
+        print(f"[Query 2] Unique patients identified: {val_q2}") 
 
         cursor.execute("SELECT Label, COUNT(*) FROM staging_source GROUP BY Label")
         print("[Query 3] Class Target Distribution:")
@@ -210,16 +211,16 @@ def run_database_pipeline() -> None:
             print(f"          -> Class {row[0]}: {row[1]} samples")
 
         cursor.execute("SELECT AVG(Age) FROM staging_source")
-        average_age_row = cursor.fetchone()[0]
-        print(f"[Query 4] Population Average Age: {average_age_row:.2f} years")
+        val_q4 = float(cursor.fetchone()[0])
+        print(f"[Query 4] Population Average Age: {val_q4:.2f} years")
 
         cursor.execute("SELECT COUNT(DISTINCT RefTag), MAX(cnt) FROM (SELECT RefTag, COUNT(*) as cnt FROM staging_source GROUP BY RefTag)")
-        batch_stats = cursor.fetchone()
-        print(f"[Query 5] Unique batches (RefTag): {batch_stats[0]} | Max sample density: {batch_stats[1]}")
+        res_q5 = cursor.fetchone()
+        print(f"[Query 5] Unique batches (RefTag): {res_q5[0]} | Max sample density: {res_q5[1]}")
 
         cursor.execute("SELECT MIN(LENGTH(DnaSequence)), MAX(LENGTH(DnaSequence)) FROM staging_source")
-        dna_lengths = cursor.fetchone() 
-        print(f"[Query 6] Genomic Integrity Check: Min Length {dna_lengths[0]} bp, Max Length {dna_lengths[1]} bp")
+        res_q6 = cursor.fetchone() 
+        print(f"[Query 6] Genomic Integrity Check: Min Length {res_q6[0]} bp, Max Length {res_q6[1]} bp")
         print("==================================================")
 
         print("\n==================================================")
@@ -256,42 +257,55 @@ def run_database_pipeline() -> None:
 # ==============================================================================
 
 def encode_dna_sequences(sequences, mapping):
-    """Flattens 2D One-Hot categorical sequence representations into standalone 1D arrays."""
+    """Flattens 2D One-Hot categorical sequence representations into Standalone TensorFlow Tensors."""
     encoded_matrix = []
     for seq in sequences:
         one_hot_seq = []
         for base in seq:
             one_hot_seq.extend(mapping[base])
         encoded_matrix.append(one_hot_seq)
-    return np.array(encoded_matrix, dtype=np.float32)
+    
+    return tf.convert_to_tensor(encoded_matrix, dtype=tf.float32)
 
 
 def run_machine_learning_pipeline(df: pd.DataFrame) -> tuple:
-    """Executes feature tensor encoding, cross-validation splitting, and model training benchmarks."""
+    """Executes feature tensor encoding, cross-validation splitting, and TensorFlow neural training benchmarks."""
     mapping = {'A': [1.0, 0.0, 0.0, 0.0], 'C': [0.0, 1.0, 0.0, 0.0], 'G': [0.0, 0.0, 1.0, 0.0], 'T': [0.0, 0.0, 0.0, 1.0]}
     
     X_raw = df['DnaSequence'].values
     y = df['Label'].values
 
-    X = encode_dna_sequences(X_raw, mapping)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=26, stratify=y)
+    X_tensor = encode_dna_sequences(X_raw, mapping)
+    X_train, X_test, y_train, y_test = train_test_split(X_tensor.numpy(), y, test_size=0.20, random_state=26, stratify=y)
 
-    print(f"Input Feature Matrix Shape: {X.shape} | Training Dimensions: {X_train.shape}")
+    input_feature_dim = X_train.shape[1]
+    print(f"Input Feature Tensor Shape: {X_tensor.shape} | Training Dimensions: {X_train.shape}")
 
-    # Model A Initialization (Standard MLP Topology)
-    print("\n[TRAINING] Initializing Network Architecture A (32x16 Layer Config)...")
-    model_nn_a = MLPClassifier(hidden_layer_sizes=(32, 16), activation='relu', solver='adam', max_iter=15, random_state=26, verbose=True)
-    model_nn_a.fit(X_train, y_train)
+    # Model A Initialization (TensorFlow Sequential - 32x16 Topology)
+    print("\n[TRAINING] Initializing TensorFlow Network Architecture A (32x16 Layer Config)...")
+    model_nn_a = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=(input_feature_dim,)),
+        tf.keras.layers.Dense(32, activation='relu'),
+        tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(1, activation='sigmoid')
+    ])
+    model_nn_a.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+    history_a = model_nn_a.fit(X_train, y_train, epochs=15, batch_size=200, verbose=1)
 
-    # Model B Initialization (Deep Linear Map Topology)
-    print("\n[TRAINING] Initializing Network Architecture B (64x Single Layer Config)...")
-    model_nn_b = MLPClassifier(hidden_layer_sizes=(64,), activation='relu', solver='adam', max_iter=15, random_state=26, verbose=True)
-    model_nn_b.fit(X_train, y_train)
+    # Model B Initialization (TensorFlow Sequential - 64x Single Layer Topology)
+    print("\n[TRAINING] Initializing TensorFlow Network Architecture B (64x Single Layer Config)...")
+    model_nn_b = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=(input_feature_dim,)),
+        tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dense(1, activation='sigmoid')
+    ])
+    model_nn_b.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+    history_b = model_nn_b.fit(X_train, y_train, epochs=15, batch_size=200, verbose=1)
 
-    y_pred_a = model_nn_a.predict(X_test)
-    y_pred_b = model_nn_b.predict(X_test)
+    y_pred_a = (model_nn_a.predict(X_test) > 0.5).astype(int).flatten()
+    y_pred_b = (model_nn_b.predict(X_test) > 0.5).astype(int).flatten()
 
-    return y_test, y_pred_a, y_pred_b, model_nn_a.loss_curve_, model_nn_b.loss_curve_
+    return y_test, y_pred_a, y_pred_b, history_a.history['loss'], history_b.history['loss']
 
 
 def generate_pipeline_benchmarks(y_test, y_pred_a, y_pred_b, loss_a, loss_b):
@@ -339,9 +353,6 @@ def generate_pipeline_benchmarks(y_test, y_pred_a, y_pred_b, loss_a, loss_b):
     plt.savefig("benchmark_confusion_matrices.png", dpi=300); plt.close()
     print("INFO - Confusion matrices successfully saved as 'benchmark_confusion_matrices.png'")
 
-# ==============================================================================
-# PIPELINE ORCHESTRATION ENGINE (MAIN RUNTIME)
-# ==============================================================================
 
 def main():
     print("Executing Stage 1: Data Simulation and Multiclass Staging...")
@@ -367,7 +378,6 @@ def main():
     df_final.to_excel(EXCEL_READY_PATH, index=False)
     df_final.to_parquet(PARQUET_READY_PATH, index=False)
     
-    # Vectorized writing paired with open Context Manager
     with open(FASTA_READY_PATH, "w", encoding="utf-8") as fasta_ready_file:
         lines_ready = [
             f">Patient_{row.PatientID}|Label_{row.Label}|Age_{row.Age}\n{row.DnaSequence}\n"
@@ -378,7 +388,7 @@ def main():
     print("\nExecuting Stage 4: Relational Ingestion Engine Pipeline...")
     run_database_pipeline()
 
-    print("\nExecuting Stage 5: Tensor Sequence Classification (MLP Inference Evaluation)...")
+    print("\nExecuting Stage 5: Tensor Sequence Classification (TensorFlow DNN Inference Evaluation)...")
     y_test, y_pred_a, y_pred_b, loss_a, loss_b = run_machine_learning_pipeline(df_final)
 
     print("\nExecuting Stage 6: Graphical Performance Benchmark Synchronization...")
@@ -391,4 +401,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
 

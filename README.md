@@ -28,9 +28,9 @@ Validates enterprise data storage scalability using an automated local database 
 - Achieves structural Third Normal Form (3NF) decomposition by decoupling demographic indices (patients parent schema) from technical analytical layers (biology child schema) linked via foreign keys and protected with high-performance B-Tree clustering indexes (idx_biology_label).
 
 ### 4. Deep Learning Benchmarking / ディープラーニングベンチマーク
-Transforms categorical genetic profiles into input feature spaces via equidistant One-Hot sequence matrices (800 continuous dimensions per record based on a 4-base mapping layout). Executes a stratified split (80% Train, 20% Test) and benchmarks deep multi-layer representations (MLP Classifier Architectures) to map loss optimization and out-of-sample prediction profiles:
-- Architecture A: Standard Multi-layer Perceptron (32 × 16 hidden topography with Adam Optimization, ReLU activations, and max_iter=15).
-- Architecture B: Focused Sequential Architecture (64 hidden units in a single layer configuration with Adam Optimization, ReLU activations, and max_iter=15).
+Transforms categorical genetic profiles into input feature spaces via equidistant One-Hot sequence matrices (800 continuous dimensions per record based on a 4-base mapping layout). Executes a stratified split (80% Train, 20% Test) and benchmarks deep multi-layer neural network representations using native TensorFlow/Keras sequential architectures to map loss optimization and out-of-sample prediction profiles:
+- **Architecture A**: TensorFlow Sequential Network (32 × 16 dense hidden layers with Adam Optimization, ReLU activations, Sigmoid output, trained for 15 epochs).
+- **Architecture B**: Focused Sequential Network (64 hidden units in a single dense layer configuration with Adam Optimization, ReLU activations, trained for 15 epochs).
 
 ---
 
