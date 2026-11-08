@@ -11,7 +11,6 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'     # Mute oneDNN runtime optimization
 
 import unittest
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 # Automatically inject the parent directory into the Python path resolution

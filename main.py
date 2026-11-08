@@ -4,10 +4,7 @@
 # SYSTEM & STANDARD LIBRARY IMPORTS (PEP 8 COMPLIANT)
 # ==============================================================================
 import os
-import random
 import sqlite3
-import subprocess
-import sys
 import warnings  
 from pathlib import Path
 
@@ -23,9 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import sklearn
 import tensorflow as tf
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.model_selection import train_test_split
 
 # Enforce non-interactive visualization backend for headless/CI pipelines
@@ -78,7 +74,7 @@ def generate_genomic_dataset(n_samples: int = 10000) -> pd.DataFrame:
             
     dataset = {
         "PatientID": np.random.randint(1, n_samples, size=n_samples),
-        "Age": [random.randrange(20, 66) for _ in range(n_samples)],
+        "Age": np.random.randint(20, 66, size=n_samples),
         "RefTag": np.random.randint(1, n_samples, size=n_samples),
         "Label": np.random.randint(0, 2, size=n_samples),
         "DnaSequence": dna_sequences
@@ -257,15 +253,15 @@ def run_database_pipeline() -> None:
 # ==============================================================================
 
 def encode_dna_sequences(sequences, mapping):
-    """Flattens 2D One-Hot categorical sequence representations into Standalone TensorFlow Tensors."""
-    encoded_matrix = []
-    for seq in sequences:
-        one_hot_seq = []
-        for base in seq:
-            one_hot_seq.extend(mapping[base])
-        encoded_matrix.append(one_hot_seq)
+    """Vectorized DNA encoding: flattens 2D sequences into Standalone TensorFlow Tensors without imperative loops."""
+    char_matrix = np.array([list(seq) for seq in sequences])
+    lookup = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]], dtype=np.float32)
+    index_matrix = np.zeros(char_matrix.shape, dtype=np.int32)
+    for i, base in enumerate(['A', 'C', 'G', 'T']):
+        index_matrix[char_matrix == base] = i
     
-    return tf.convert_to_tensor(encoded_matrix, dtype=tf.float32)
+    flattened_matrix = lookup[index_matrix].reshape(len(sequences), -1)
+    return tf.convert_to_tensor(flattened_matrix, dtype=tf.float32)
 
 
 def run_machine_learning_pipeline(df: pd.DataFrame) -> tuple:
