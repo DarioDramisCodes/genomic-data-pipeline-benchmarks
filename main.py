@@ -85,8 +85,8 @@ def generate_genomic_dataset(n_samples: int = 10000) -> pd.DataFrame:
 def export_initial_formats(df: pd.DataFrame) -> None:
     """Synchronizes the simulated raw data layer across multi-standard extensions."""
     df.to_excel(EXCEL_RAW_PATH, index=False)
-    df.to_parquet(PARQUET_RAW_PATH, index=False, engine='fastparquet')
-    
+    df.to_parquet(PARQUET_RAW_PATH, index=False, engine='pyarrow', compression='snappy')
+
     # Vectorized implementation with open Context Manager
     with open(FASTA_RAW_PATH, "w", encoding="utf-8") as fasta_file:
         fasta_lines = [
@@ -167,6 +167,13 @@ def run_database_pipeline() -> None:
     # Enforce safe connection context manager
     with sqlite3.connect(str(DB_PATH)) as connection:
         cursor = connection.cursor()
+
+        # High-throughput industrial SQLite PRAGMA tuning
+        cursor.execute("PRAGMA journal_mode = WAL;")
+        cursor.execute("PRAGMA synchronous = NORMAL;")
+        cursor.execute("PRAGMA cache_size = -64000;")
+        cursor.execute("PRAGMA temp_store = MEMORY;")
+        cursor.execute("PRAGMA mmap_size = 268435456;")
 
         # Enforce relational constraints and wipe stale table assets
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -372,8 +379,8 @@ def main():
     print(f"\nVerification: Consensus motif correctly isolated on targets: {tata_pos1 and not tata_pos0}")
 
     df_final.to_excel(EXCEL_READY_PATH, index=False)
-    df_final.to_parquet(PARQUET_READY_PATH, index=False)
-    
+    df_final.to_parquet(PARQUET_READY_PATH, index=False, engine='pyarrow', compression='snappy')
+
     with open(FASTA_READY_PATH, "w", encoding="utf-8") as fasta_ready_file:
         lines_ready = [
             f">Patient_{row.PatientID}|Label_{row.Label}|Age_{row.Age}\n{row.DnaSequence}\n"
