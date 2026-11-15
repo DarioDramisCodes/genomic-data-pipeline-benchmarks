@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY . .
 
 # Run the automated unit test suite to validate environment health before container launch
-RUN python -m unittest discover -s . -p "test_*.py"
+RUN python -m unittest discover -s tests -p "test_*.py" -v
 
 # Set the operational entrypoint to trigger the high-throughput processing pipeline
 CMD ["python", "main.py"]
