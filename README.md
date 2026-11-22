@@ -1,6 +1,12 @@
 # End-to-End Genomic Pipeline and Deep Learning Benchmark (PoC)
 ### ゲノムデータ処理パイプラインとディープラーニングベンチマーク
 
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![Pandas](https://img.shields.io/badge/Pandas-Validation-150458)
+![SQLite](https://img.shields.io/badge/SQLite-3NF-003B57)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-MLP-FF6F00)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)
+
 ## Project Overview / プロジェクト概要
 This Proof of Concept (PoC) demonstrates an end-to-end data engineering and machine learning pipeline designed for genomic sequence validation and binary classification. The architecture simulates raw clinical environments, executes pipeline stress testing through structured anomaly injection, implements constraint-based data cleansing using Python (Pandas), normalizes data into a relational database schema (3NF SQLite), and trains deep neural networks (MLP) to evaluate categorical classification convergence based on a deterministic evolutionary signal (the TATA-box consensus motif).
 
@@ -58,7 +64,7 @@ Upon execution, the automated runtime synchronizes and exports the following dep
 
 4. Run the automated integration and unit test suite:
    ```bash
-   python test_pipeline.py
+   python -m unittest discover -s tests -p "test_*.py" -v
    ```
 
 ### Method B: Containerized Isolation (Docker) / Docker環境
@@ -73,4 +79,17 @@ To compile the environment and run the pipeline inside an isolated container:
    ```bash
    docker run --rm genomic-pipeline-benchmarks
    ```
+
+---
+
+## Future Roadmap / 今後のロードマップ
+
+To evolve this Proof of Concept into an enterprise-grade, scalable genomic analytics platform, the following architectural upgrades are planned:
+
+- **Real-World Genomic Data Ingestion (NCBI GenBank & Ensembl API):** Replace synthetic baseline generation with automated programmatic fetching and parsing of real FASTA/GenBank annotations via Biopython and REST APIs.
+- **Genomic Foundation Model Benchmarking (DNABERT / HyenaDNA):** Extend the classification benchmark beyond baseline MLPs by fine-tuning pre-trained genomic transformers and state-space models to capture long-range regulatory motifs.
+- **Biotech Patent & Sequence Mining (USPTO / WIPO):** Integrate automated NLP and sequence-alignment parsers to cross-reference functional motifs against public biomedical patent databases.
+- **Cloud-Native Production Migration (AWS Batch & PostgreSQL):** Transition the local SQLite/Docker batch runtime to a distributed cloud architecture leveraging **AWS Batch** for containerized compute and **Amazon RDS (PostgreSQL)** for concurrent, multi-user relational storage.
+
+
 
